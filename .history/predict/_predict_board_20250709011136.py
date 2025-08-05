@@ -1,0 +1,43 @@
+import numpy as np
+from keras import backend as K
+from keras.models import load_model
+from constant import *
+import util
+import cv2
+def predict_board(img, model_path):
+    cell_imgs = cells(img)
+    model = load_model(model_path)
+    y = model.predict(cell_imgs)
+    K.clear_session()
+    return np.array([np.argmax(c) for c in y])
+
+def cells(img):
+      # グレースケールに変換
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+ 
+            # ノイズ除去（ガウシアンブラー）
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+ 
+            # 適応的二値化（背景が不均一な場合に強い）
+    img = cv2.adaptiveThreshold(
+        blurred, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        11, 2
+         )
+            #画像を28x28にリサイズ　MNISTに合わせる。
+    img = cv2.resize(img, (28, 28), interpolation=cv2.INTER_AREA)
+    dx = img.shape[0] / 9
+    dy = img.shape[1] / 9
+    def it():
+        for i in range(9):
+            for j in range(9):
+                sx = int(dx * i)
+                sy = int(dy * j)
+                cropped = img[sx:(int(sx + dx)), sy:(int(sy + dy))]
+                yield util.normalize_img(cropped, IMG_ROWS, IMG_COLS)
+    cs = np.array(list(it()))
+    cs = cs.reshape(cs.shape[0], IMG_ROWS, IMG_COLS, 1)
+    cs = cs.astype(np.float32)
+    cs /= 255
+    return cs
